@@ -6,13 +6,19 @@ We are developing a generic model for defining arbitrary card games, including t
 
 Every part of the game state is an _entity_. Cards, players, teams, and even the game itself are examples of entities.
 
-The entities of a game can be organized as a _tree_ with parent-child relationships:
+### Entity Attributes
+
+Each entity can have a set of _attributes_ and values. The cost or power of a card, as well as the current life total of a player are great examples for attributes. Attribute values can have one of the following types:
+
+* `Integer` (positive, negative, or zero)
+* `Entity`
+* `Entity List`
+
+Conceptually, entities of a game can be organized as a _tree_ with parent-child relationships by using attributes of type `Entity` or `Entity List`:
 
 ![Entity Tree](EntityTree.png)
 
-### Entity Attributes
-
-Each entity can have a set of _attributes_ and values. The cost or power of a card, as well as the current life total of a player are great examples for attributes. Attribute values are integers (positive, negative, or zero).
+Also, attributes of type `Entity` can be used to express temporary relationships, such as monsters that are about to fight each other. 
 
 ### Entity Tags
 
@@ -22,19 +28,30 @@ Tags can also be applied to other entities, such as the game state itself, for e
 
 Also, tags can be used for specifying the layer of an entity in the entity tree, e.g. if an entity is a player or card.
 
-### Entity Links
-
-Entities can be _linked_ to other entities to express temporary relationships, such as monsters that are about to fight each other. Links are directional: Linking entity A to entity B does not mean that entity B is linked to entity A. Entities can have multiple links.
-
 ## Mutations
 
-This very generic model allows for a very narrow, specific, yet highly impactful set of _mutations_:
+This very generic model allows for a very narrow, specific, yet highly impactful set of _mutations_.
 
-* `SetAttribute(entity, attribute, value)`
+Integer attribute mutations:
+
+* `SetIntegerAttribute(entity, attribute, value)`
+
+Entity attribute mutations:
+
+* `SetEntityAttribute(entity, attribute, value)`
+
+Entity list attribute mutations:
+
+* `AddToTopOfEntityList(entity, attribute, entityToAdd)`
+* `AddToBottomOfEntityList(entity, attribute, entityToAdd)`
+* `RemoveFromTopOfEntityList(entity, attribute)`
+* `RemoveFromBottomOfEntityList(entity, attribute)`
+* `ShuffleEntityList(entity, attribute)`
+
+Tag mutations:
+
 * `AddTag(entity, tag)`
 * `RemoveTag(entity, tag)`
-* `LinkEntities(source, target, linkType)`
-* `UnlinkEntities(source, target, linkType)`
 
 These mutations are sufficient to change the state of any part of the game.
 
@@ -42,8 +59,26 @@ These mutations are sufficient to change the state of any part of the game.
 
 With this well-defined set of mutations, we can deduce a set of _events_ that can be used to trigger game rules or card abilities:
 
-* `AttributeChanged(entity, attribute, oldValue, newValue)`
+* `MatchStarted(entity)`
+* `IntegerAttributeChanged(entity, attribute, oldValue, newValue)`
+* `EntityAttributeChanged(entity, attribute, oldValue, newValue)`
+* `EntityAddedToList(modifiedEntity, listAttribute, addedEntity)`
+* `EntityRemovedFromList(modifiedEntity, listAttribute, removedEntity)`
 * `TagAdded(entity, tag)`
 * `TagRemoved(entity, tag)`
-* `EntitiesLinked(source, target, linkType)`
-* `EntitiesUnlinked(source, target, linkType)`
+
+## Actions
+
+_Actions_ are similar to functions or methods programming languages: They combine [mutations](#mutations) to powerful, re-usable building blocks that make up the game rules and things players can do.
+
+An example would be an action `DrawCard`, which uses `RemoveFromTopOfEntityList` to remove the card from the top of the draw deck, and `AddToTopOfEntityList` to add that card to the hand of the player.
+
+## Triggers
+
+Putting it all together, you can use _triggers_ to define the rules of the game. Triggers listen for [events](#events) and execute [actions](#actions). 
+
+Here is an example of a trigger called `DrawPhase`: Whenever the `TagAdded` event occurs, the trigger checks whether the tag is the `TurnPhase.Draw` tag. In that case, it executes a `DrawCard` action for the current player.
+
+Another example would be a trigger called `PrepareMatch`, which listens for the `MatchStarted` event to make all players draw their initial hand of cards.
+
+You might have noticed that the `MatchStarted` event providing an entity. That entity is the _match configuration_ which is automatically seeded with data that players specified before starting the match, such as their deck lists or the difficulty level.
